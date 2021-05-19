@@ -1,266 +1,223 @@
 #include "mem.h"
 
+bool findSTOP(char * str)                                                   // Finds substring STOP in string passed in, only just STOP
+{
+    char str2[1000];                                                        // Declaration for safety
+    strcpy(str2, str);                                                      // Copy for safety
+    const char search[5] = "STOP";                                          // Search for
+    const char search2[5] = "STOP\n";                                       // Search for alt
+    const char delim[2] = " ";                                              // Delim
+
+    char *token;                                                            // Token declaration
+
+    bool end = false;                                                       // Bool for ret
+
+    token = strtok(str2, delim);                                            // Tokenize the string with delim
+
+    while (token != NULL)                                                   // While not end of string
+    {                           
+        if(strcmp(token, search) == 0 || strcmp(token, search2) == 0)       // Check for either search terms
+        {
+            end = true;                                                     // If so toggle end
+            break;                                                          // And break
+        }
+        token = strtok(NULL, delim);                                        // Tokenize again
+    }
+    
+    // DEBUG
+    if(end)
+    {
+        //printf("ENDING\n");
+    }
+
+    return end;                                                             // Ret
+}
+
 void * threadOne()
 {
     // Read in a line of the input and search for STOP substring
     char input[1000] = "";
     char * fgetsStatus = NULL;
     fgetsStatus = fgets(input, 1000, stdin);
-    //printf("Read in line: %s", input);
-    //scanf("%s", input);
-
-    /*
-    //! BEGINING TEST CODE
-
-    char delim[2] = " \n"; 
-    char * token = NULL;
-    token = strtok(input, delim);
-    bool end = false;
-    while(token)
-    {
-        if(strncmp(token, "STOP", 4) == 0 && (*(token + 4) == ' ' || *(token + 4) == '\n'))
-        {
-            printf("Found end at beginning with line %s\n", token);
-            end = true;
-            break;
-        }
-        token = strtok(NULL, delim);
-    }
-
-    //! ENDING TEST CODE
-    */
     
+    bool end = false;
+    end = findSTOP(input);
+
+    // Locate substring STOP
     char * status = strstr(input, "STOP");
-    ////printf("input[0]: %c\n", input[0]);
 
-    while(!status && input[0] != '\n' && indexToLoadOne < 49)
-    //while(!end && input[0] != '\n' && indexToLoadOne < 49) //! TEST CODE
+    while(!end && input[0] != '\n' && indexToLoadOne < 49)
     {
-        //printf("%s", input);
-        //if(status)
-            //pthread_exit(NULL);
-        loadBufferOne(input);
-        ////printf("Loaded buffer one\n");
-        fgetsStatus = fgets(input, 1000, stdin);
-        //scanf("%s", input);
-        status = strstr(input, "STOP");
-        /*
-        //! BEGINING TEST CODE
-
-        token = strtok(input, delim);
-        while(token)
-        {
-            if(strncmp(token, "STOP", 4) == 0 && (*(token + 4) == ' ' || *(token + 4) == '\n'))
-            {
-                printf("Found end at mid with line %s\n", input);
-                end = true;
-                break;
-            }
-            token = strtok(NULL, delim);
-        }
-
-        //! ENDING TEST CODE
-        */
-        ////printf("input[0]: %c\n", input[0]);
+        loadBufferOne(input);                                       // Load into the buffer
+        fgetsStatus = fgets(input, 1000, stdin);                    // Grab the next line of input
+        status = strstr(input, "STOP");                             // Locate substring STOP
+        end = findSTOP(input);
     }
-    char kill[1000];
-    kill[0] = '\n';
-    loadBufferOne(kill);
-    ////printf("Thread one died\n");
-    ////printf("indexToLoadOne: %d\n", indexToLoadOne);
-    //pthread_exit(NULL);
+    char kill[1000];                                                // Kill code
+    kill[0] = '\n';                                                 // Just an empty newline
+    loadBufferOne(kill);                                            // Send killcode down the pipeline
 }
 
 void loadBufferOne(char payload[1000])
 {
-    ////printf("attempting to load buffer one\n");
-    pthread_mutex_lock(&mutexOne);      // Lock the mutex
-    ////printf("Locked mutex one\n");
-    strcpy(bufferOne[indexToLoadOne], payload);
-    ////printf("Loading this line into buffer one: %s\n", bufferOne[indexToLoadOne]);
-    ////printf("Payload delivered\n");
-    sizeOne[indexToLoadOne] = strlen(bufferOne[indexToLoadOne]);
-    ////printf("bufferOne contains: %s\n", bufferOne[indexToLoadOne]);
-    //bufferOne = payload;                // Load the payload
-    pthread_cond_signal(&fullOne);      // Signal consumer
-    pthread_mutex_unlock(&mutexOne);    // Unlock the mutex
-    ++indexToLoadOne;
+    pthread_mutex_lock(&mutexOne);                                  // Lock the mutex
+    strcpy(bufferOne[indexToLoadOne], payload);                     // Deliver payload
+    sizeOne[indexToLoadOne] = strlen(bufferOne[indexToLoadOne]);    // Move sizes
+    pthread_cond_signal(&fullOne);                                  // Signal consumer
+    pthread_mutex_unlock(&mutexOne);                                // Unlock the mutex
+    ++indexToLoadOne;                                               // Incrememnt index
 }
 
 char * unloadBufferOne()
 {
-    ////printf("Waiting to unload buffer 1\n");
-    pthread_mutex_lock(&mutexOne);
-    if(indexToLoadOne == indexToUnloadOne)
-        pthread_cond_wait(&fullOne, &mutexOne);
-    ////printf("Done waiting\n");
-    char data[1000] = "";
-    strcpy(data, bufferOne[indexToUnloadOne]);
-    ////bufferOne[indexToUnloadOne][0] = '\n';
-    pthread_mutex_unlock(&mutexOne);
-    ++indexToUnloadOne;
+    pthread_mutex_lock(&mutexOne);                                  // Lock the mutex
+    if(indexToLoadOne == indexToUnloadOne)                          // If buffer is empty
+        pthread_cond_wait(&fullOne, &mutexOne);                     // Wait until its not
+    char data[1000] = "";                                           // Data declaration
+    strcpy(data, bufferOne[indexToUnloadOne]);                      // Unload data
+    pthread_mutex_unlock(&mutexOne);                                // Unlock the mutex
+    ++indexToUnloadOne;                                             // Increment index
 
-    return data;
+    return data;                                                    // Return unloaded data
 }
 
 void * threadTwo()
 {
     //printf("Thread two initialized\n");
-    char data[1000] = "";
-    char * tempStr = unloadBufferOne();
+    char data[1000] = "";                                           // Data declaration
+    char * tempStr = unloadBufferOne();                             // Unload data from buffer
     //printf("Unloaded buffer one with: %s\n", tempStr);
-    strcpy(data, tempStr);
+    strcpy(data, tempStr);                                          // Move data
     ////printf("threadTwo reading data: %s\n", data);
-    while(data[0] != '\n')
+    while(data[0] != '\n')                                          // While data is not killcode
     {
-        char * ptr;
-        ptr = strchr(data, '\n');
-        if(ptr)
-            *ptr = ' ';
-        sizeTwo[indexToLoadTwo] = sizeOne[indexToUnloadOne - 1];
-        loadBufferTwo(data);
-        tempStr = unloadBufferOne();
-        strcpy(data, tempStr);
+        char * ptr;                                                 
+        ptr = strchr(data, '\n');                                   // Search for newline char
+        if(ptr)                                                     // If you find
+            *ptr = ' ';                                             // Replace with space char
+        sizeTwo[indexToLoadTwo] = sizeOne[indexToUnloadOne - 1];    // Move size variable to next buffer
+        loadBufferTwo(data);                                        // Load new data into buffer 2
+        tempStr = unloadBufferOne();                                // Unload buffer 1
+        strcpy(data, tempStr);                                      // Move data
     }
-    if(data[0] == '\n')
-        loadBufferTwo(data);
-    ////printf("Thread two died\n");
-    return NULL;
+    if(data[0] == '\n')                                             // If killcode recieved
+        loadBufferTwo(data);                                        // Send down pipeline
+    return NULL;                                                    // Ret
 }
 
 void loadBufferTwo(char payload[1000])
 {
-    ////printf("Loading buffer two\n");
-    pthread_mutex_lock(&mutexTwo);      // Lock the mutex
-    strcpy(bufferTwo[indexToLoadTwo], payload);
-    //bufferTwo = payload;                // Load the payload
-    pthread_cond_signal(&fullTwo);      // Signal consumer
-    pthread_mutex_unlock(&mutexTwo);    // Unlock the mutex
-    ++indexToLoadTwo;
-    return;                             // Return control
+    pthread_mutex_lock(&mutexTwo);                                  // Lock the mutex
+    strcpy(bufferTwo[indexToLoadTwo], payload);                     // Deliver payload
+    pthread_cond_signal(&fullTwo);                                  // Signal consumer
+    pthread_mutex_unlock(&mutexTwo);                                // Unlock the mutex
+    ++indexToLoadTwo;                                               // Increment index
+    return;                                                         // Return control
 }
 
 char * unloadBufferTwo()
 {
-    ////printf("unloading buffer 2\n");
-    pthread_mutex_lock(&mutexTwo);
-    if(indexToLoadTwo == indexToUnloadTwo)
-        pthread_cond_wait(&fullTwo, &mutexTwo);
-    char data[1000] = "";
-    strcpy(data, bufferTwo[indexToUnloadTwo]);
-    ////bufferTwo[indexToUnloadTwo][0] = '\n';
-    pthread_mutex_unlock(&mutexTwo);
-    ++indexToUnloadTwo;
+    pthread_mutex_lock(&mutexTwo);                                  // Lock the mutex
+    if(indexToLoadTwo == indexToUnloadTwo)                          // If buffer is empty
+        pthread_cond_wait(&fullTwo, &mutexTwo);                     // Wait until its not
+    char data[1000] = "";                                           // Data declaration
+    strcpy(data, bufferTwo[indexToUnloadTwo]);                      // Unload data
+    pthread_mutex_unlock(&mutexTwo);                                // Unlock the mutex
+    ++indexToUnloadTwo;                                             // Increment index
 
-    return data;
+    return data;                                                    // Return unloaded data
 }
 
 void nukeChar(int index, char * data)
 {
-    // TODO FIX THIS THIRD OPERATOR, NOT A NULL TERMINATED STRING
-    memmove(&data[index], &data[index + 1], strlen(data) - index);
-    sizeThree[indexToLoadThree]--;
-    return;
+    memmove(&data[index], &data[index + 1], strlen(data) - index);  // Overwrite the char
+    sizeThree[indexToLoadThree]--;                                  // Decrement size
+    return;                                                         // Ret
 }
 
 void * threadThree()
 {
-    ////printf("ThreadThree init\n");
-    char data[1000] = "";
-    char * tempStr;
-    tempStr = unloadBufferTwo();
-    sizeThree[indexToLoadThree] = sizeTwo[indexToUnloadTwo - 1];
-    ////printf("Unloaded buffer 2\n");
-    strcpy(data, tempStr);
+    char data[1000] = "";                                           // Declaration
+    char * tempStr;                                                 // Declaration
+    tempStr = unloadBufferTwo();                                    // Unload from buffer 2
+    sizeThree[indexToLoadThree] = sizeTwo[indexToUnloadTwo - 1];    // Move sizes
+    strcpy(data, tempStr);                                          // Move data
 
-    while(data[0] != '\n')
+    while(data[0] != '\n')                                          // While not killcode
     {
-        for(int i = 0; i < 1000; i++)
+        for(int i = 0; i < 1000; i++)                               // Parse data
         {
-            if(data[i] == '+' && data[i + 1] == '+')
+            if(data[i] == '+' && data[i + 1] == '+')                // If double plus found
             {
-                data[i] = '^';
-                nukeChar(i + 1, data);
+                data[i] = '^';                                      // Replace first plus with caret
+                nukeChar(i + 1, data);                              // Nuke second plus
             }
-            else if(data[i] == '\n')
-                break;
+            else if(data[i] == '\n')                                // If find a newline
+                break;                                              // Break
         }
-        loadBufferThree(data);
-        tempStr = unloadBufferTwo();
-        sizeThree[indexToLoadThree] = sizeTwo[indexToUnloadTwo - 1];
-        strcpy(data, tempStr);
+        loadBufferThree(data);                                      // Load data into buffer 3
+        tempStr = unloadBufferTwo();                                // Unload next piece
+        sizeThree[indexToLoadThree] = sizeTwo[indexToUnloadTwo - 1];// Move sizes
+        strcpy(data, tempStr);                                      // Move data
     }
-    if(data[0] == '\n')
-        loadBufferThree(data);
-    ////printf("Thread three died\n");
-    return NULL;
+    if(data[0] == '\n')                                             // If killcode
+        loadBufferThree(data);                                      // Load killcode
+    return NULL;                                                    // Ret
 }
 
 void loadBufferThree(char payload[1000])
 {
-    ////printf("Loading buffer three with %s\n", payload);
-    pthread_mutex_lock(&mutexThree);    // Lock the mutex
-    strcpy(bufferThree[indexToLoadThree], payload);
-    
-    //bufferThree = payload;              // Load the payload
-    pthread_cond_signal(&fullThree);    // Signal consumer
-    pthread_mutex_unlock(&mutexThree);  // Unlock the mutex
-    ++indexToLoadThree;
-    return;                             // Return control
+    pthread_mutex_lock(&mutexThree);                                // Lock the mutex
+    strcpy(bufferThree[indexToLoadThree], payload);                 // Deliver payload
+    pthread_cond_signal(&fullThree);                                // Signal consumer
+    pthread_mutex_unlock(&mutexThree);                              // Unlock the mutex
+    ++indexToLoadThree;                                             // Increment index
+    return;                                                         // Return control
 }
 
 char * unloadBufferThree()
 {
-    ////printf("unloading buffer 3\n");
-    pthread_mutex_lock(&mutexThree);
-    if(indexToLoadThree == indexToUnloadThree)
-        pthread_cond_wait(&fullThree, &mutexThree);
-    char data[1000] = "";
-    strcpy(data, bufferThree[indexToUnloadThree]);
-    ////bufferThree[indexToUnloadThree][0] = '\n';
-    pthread_mutex_unlock(&mutexThree);
-    ++indexToUnloadThree;
+    pthread_mutex_lock(&mutexThree);                                // Lock mutex
+    if(indexToLoadThree == indexToUnloadThree)                      // If buffer empty
+        pthread_cond_wait(&fullThree, &mutexThree);                 // Wait for buffer to fill
+    char data[1000] = "";                                           // Declaration
+    strcpy(data, bufferThree[indexToUnloadThree]);                  // Unload data
+    pthread_mutex_unlock(&mutexThree);                              // Unlock mutex
+    ++indexToUnloadThree;                                           // Incrememnt index
 
-    return data;
+    return data;                                                    // Ret
 }
 
 void * threadFour()
 {
-    ////printf("ThreadFour init\n");
-    char data[1080] = "";
-    char * tempStr = unloadBufferThree();
-    int localSize = sizeThree[indexToUnloadThree - 1];
-    strcpy(data, tempStr);
+    char data[1080] = "";                                           // Declaration
+    char * tempStr = unloadBufferThree();                           // Unload data from buffer 3
+    int localSize = sizeThree[indexToUnloadThree - 1];              // Grab size
+    strcpy(data, tempStr);                                          // Move data
 
-    while(tempStr[0] != '\n')
+    while(tempStr[0] != '\n')                                       // While not killcode
     {
-        ////printf("In thread 4 while loop\n");
-        while(localSize < 80)
+        while(localSize < 80)                                       // While size is not enough to display a line
         {
-            ////printf("In nested while loop\n");
-            char temp[1000];
-            tempStr = unloadBufferThree();
-            if(tempStr[0] == '\n')
-                break;
-            ////printf("Past unload in nested while loop\n");
-            strcpy(temp, tempStr);
-            strcat(data, temp);
-            ////printf("New string after cat is: %s\n", data);
-            localSize = localSize + sizeThree[indexToUnloadThree - 1];
+            char temp[1000];                                        // Declaration
+            tempStr = unloadBufferThree();                          // Unload another line
+            if(tempStr[0] == '\n')                                  // If killcode
+                break;                                              // Break
+            strcpy(temp, tempStr);                                  // Otherwise move to a new location
+            strcat(data, temp);                                     // Concatonate strings
+            localSize = localSize + sizeThree[indexToUnloadThree - 1];  // Change size appropriately
         }
-        if(tempStr[0] == '\n')
-            break;
-        ////printf("Past nested while loop\n");
-        fwrite(data, sizeof(char), 80, stdout);
-        fwrite("\n", sizeof(char), 1, stdout);
-        fflush(stdout);
-        char overwrite[1080] = "";
+        if(tempStr[0] == '\n')                                      // If killcode
+            break;                                                  // Break
+        fwrite(data, sizeof(char), 80, stdout);                     // Write 80 chars to stdout
+        fwrite("\n", sizeof(char), 1, stdout);                      // Write newline to stdout
+        fflush(stdout);                                             // Flush
+        char overwrite[1080] = "";                                  // Declaration
         
-        memmove(&overwrite[0], &data[80], localSize - 80);
-        strcpy(data, overwrite);
-        localSize = localSize - 80;
+        memmove(&overwrite[0], &data[80], localSize - 80);          // Nuke 80 chars just written 
+        strcpy(data, overwrite);                                    // Push nuked string
+        localSize = localSize - 80;                                 // Adjust size accordingly
     }
 
-    ////printf("Thread four died\n");
-    return NULL;
+    return NULL;                                                    // Ret
 }
