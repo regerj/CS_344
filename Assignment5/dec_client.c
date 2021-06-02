@@ -43,14 +43,13 @@ int main(int argc, char * argv[])
 {
     int socketHandle, portNumber, charsWritten, charsRead;      // Declare ints
     struct sockaddr_in serverAddress;                           // Declare the socket info
-    char buffer[256];                                           // Declare buffer
 
     portNumber = atoi(argv[3]);
 
     if(argc < 4)                                                // If cmd line args are invalid
     {
         fprintf(stderr, "USAGE: %s plaintext key port\n", argv[0]); // Output error
-        fflush( stdout );
+        fflush( stderr );
         exit(0);                                                // Exit with code 0
     }
 
@@ -61,10 +60,6 @@ int main(int argc, char * argv[])
     }
 
     setupAddressStruct(&serverAddress, portNumber, "localhost");// Setup the address struct using the port number and host name
-
-    // User interface output
-    printf("CLIENT: Enter text to send to the server, and then hit enter: ");
-    fflush( stdout );
 
     // TODO Make input come from text file
 
@@ -77,13 +72,13 @@ int main(int argc, char * argv[])
 
     char str[10000];
     fgets(str, sizeof(str), plainText);
-    printf("Found str to be: %s", str);
-    fflush( stdout );
+    //printf("Found str to be: %s", str);
+    //fflush( stdout );
 
     str[strcspn(str, "\n")] = '\0';
 
-    printf("Stripping str of its \n yields %s", str);
-    fflush( stdout );
+    //printf("Stripping str of its \n yields %s", str);
+    //fflush( stdout );
 
     fclose(plainText);
 
@@ -98,18 +93,20 @@ int main(int argc, char * argv[])
     fgets(key, sizeof(key), keyHandle);
 
     key[strcspn(key, "\n")] = '\0';
-    printf("Found key to be %s after stripping it of its newline\n");
-    fflush( stdout );
+    //printf("Found key to be %s after stripping it of its newline\n");
+    //fflush( stdout );
 
     fclose(keyHandle);
 
-    char toTransmit[25000] = { '\0' };
+    char toTransmit[150000] = { '\0' };
     strcpy(toTransmit, str);
     strcat(toTransmit, "!");
     strcat(toTransmit, key);
     strcat(toTransmit, "!");
+    strcat(toTransmit, "D");
+    strcat(toTransmit, "!");
 
-    printf("toTransmit: %s\n", toTransmit);
+    //printf("toTransmit: %s\n", toTransmit);
 
     //memset(buffer, sizeof(buffer) - 1, stdin);                // Grab buffer
 
@@ -123,25 +120,25 @@ int main(int argc, char * argv[])
 
     // Attempt to transmit the buffer over the socket
     charsWritten = send(socketHandle, toTransmit, strlen(toTransmit), 0);
-    printf("Chars written: %d\n", charsWritten);
-    fflush( stdout );
+    //printf("Chars written: %d\n", charsWritten);
+    //fflush( stdout );
 
     if(charsWritten < 0)                                        // If it fails
     {
         error("CLIENT: ERROR writing to socket");               // Output error
     }
 
-    memset(buffer, '\0', sizeof(buffer));                       // Clear buffer
+    memset(str, '\0', sizeof(str));                       // Clear buffer
 
     // Recieve the transmission from the server
-    charsRead = recv(socketHandle, buffer, sizeof(buffer) - 1, 0);
+    charsRead = recv(socketHandle, str, sizeof(str) - 1, 0);
     if(charsRead < 0)                                           // If the recieve fails
     {
         error("CLIENT: ERROR reading from socket");             // Output error
     }
 
     // Output the recieved chars
-    printf("CLIENT: I recieved this from the server: \"%s\"\n", buffer);
+    printf("%s\n", str);
     fflush( stdout );
 
     close(socketHandle);                                        // Hang up
