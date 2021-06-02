@@ -39,7 +39,11 @@ void generateKey(int len)
 {
     for(int i = 0; i < len; i++)
     {
-        printf("%d", rand() % 10);
+        int currChar = 0;
+        currChar = (rand() % 27) + 65;
+        if(currChar == 91)
+            currChar = 32;
+        printf("%c", currChar);
     }
     printf("\n");
     return;

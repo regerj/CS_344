@@ -60,7 +60,7 @@ int main(int argc, char * argv[])
         error("CLIENT: ERROR opening socket");                  // Output error
     }
 
-    setupAddressStruct(&serverAddress, portNumber, "localhost"); // Setup the address struct using the port number and host name
+    setupAddressStruct(&serverAddress, portNumber, "localhost");// Setup the address struct using the port number and host name
 
     // User interface output
     printf("CLIENT: Enter text to send to the server, and then hit enter: ");

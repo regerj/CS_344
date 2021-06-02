@@ -6,6 +6,31 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
+// TODO Code encryption function and add key stuff
+
+char * encrypt(char * msg, char * key)
+{
+    char encMsg[10000];
+    strcpy(encMsg, msg);
+    printf("encMsg before encoding: %s\n", encMsg);
+
+    for(int i = 0; i < strlen(encMsg); i++)
+    {
+        if(encMsg[i] == 32)
+            encMsg[i] = 91;
+        if(key[i] == 32)
+            key[i] = 91;
+        int encChar = (encMsg[i]) + (key[i] - 65);
+        if(encChar > 91)
+            encChar = encChar - 27;
+        else if(encChar == 91)
+            encChar = 32;
+        encMsg[i] = (char)encChar;
+    }
+
+    return encMsg;
+}
+
 // Error function used for reporting issues
 void error(const char * msg)
 {
@@ -27,7 +52,8 @@ int main(int argc, char * argv[])
 {
     int connectionSocket;
     int charsRead;
-    char buffer[256];
+    int charsWritten;
+    char buffer[10000];
     struct sockaddr_in serverAddress;
     struct sockaddr_in clientAddress;
     socklen_t sizeOfClientInfo = sizeof(clientAddress);
@@ -35,6 +61,7 @@ int main(int argc, char * argv[])
     if(argc < 2)                                                // If too few arguments
     {
         fprintf(stderr, "USAGE: %s port\n", argv[0]);           // Output errors
+        fflush( stdout );
         exit(1);                                                // Exit with code 1
     }
 
@@ -44,7 +71,7 @@ int main(int argc, char * argv[])
         error("ERROR opening socket");                          // Output errors
     }
 
-    setupAddresStruct(&serverAddress, atoi(argv[1]));           // Set up the address struct for the server socket
+    setupAddressStruct(&serverAddress, atoi(argv[1]));           // Set up the address struct for the server socket
 
     // Bind the socket to the port
     if(bind(listenSocket, (struct sockaddr *) &serverAddress, sizeof(serverAddress)) < 0)
@@ -56,30 +83,61 @@ int main(int argc, char * argv[])
 
     while(1)
     {
+        // Accept the connection and grab client address info
         connectionSocket = accept(listenSocket, (struct sockaddr *) &clientAddress, &sizeOfClientInfo);
-        if(connectionSocket < 0)
+        if(connectionSocket < 0)                                // If it failed to accept
         {
-            error("ERROR on accept");
+            error("ERROR on accept");                           // Output error
         }
 
+        // Debug output 
         printf("SERVER: Connected to client running at host %d port %d\n", ntohs(clientAddress.sin_addr.s_addr), ntohs(clientAddress.sin_port));
+        fflush( stdout );
+        memset(buffer, '\0', 256);                              // Clear buffer
 
-        memset(buffer, '\0', 256);
-
-        charsRead = recv(connectionSocket, buffer, 255, 0);
-        if(charsRead < 0)
+        charsRead = recv(connectionSocket, buffer, 9999, 0);     // Recieve communication into the buffer of max size 255
+        if(charsRead < 0)                                       // If the recieve failed
         {
-            error("ERROR reading from socket");
+            error("ERROR reading from socket");                 // Output error
         }
+
+        printf("Recieved %d chars\n", charsRead);
+        fflush( stdout );
+
+        // Output the recieved bytes
         printf("SERVER: I recieved this from the client : \"%s\"\n", buffer);
+        fflush( stdout );
 
-        charsRead = send(connectionSocket, "I am the server, and I got your message", 39, 0);
-        if(charsRead < 0)
+        char msg[10000];
+        char key[15000];
+        char * token = strtok(buffer, "!");
+        printf("Made it past first tokenize: %s\n", token);
+        fflush( stdout );
+        strcpy(msg, token);
+        token = strtok(NULL, "!");
+        printf("Made it past the second tokenize: %s\n", token);
+        fflush( stdout );
+        strcpy(key, token);
+
+        printf("Made it past tokenizing\n");
+        fflush( stdout );
+
+        char * encMsg = encrypt(msg, key);
+
+        printf("encMsg: %s\n", encMsg);
+        fflush( stdout );
+
+        // Send back an ACK
+        printf("Size of encMsg: %d\n", strlen(encMsg));
+        charsWritten = send(connectionSocket, encMsg, strlen(encMsg), 0);
+        printf("Sent encMsg\n");
+        fflush( stdout );
+        if(charsWritten < 0)                                       // If the message failed to send
         {
-            error("ERROR writing to socket");
+            error("ERROR writing to socket");                   // Output error
         }
 
-        close(connectionSocket);
+        close(connectionSocket);                                // Hang up
     }
 
     close(listenSocket);
