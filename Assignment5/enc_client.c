@@ -61,60 +61,43 @@ int main(int argc, char * argv[])
 
     setupAddressStruct(&serverAddress, portNumber, "localhost"); // Setup the address struct using the port number and host name
 
-    // User interface output
-    //printf("CLIENT: Enter text to send to the server, and then hit enter: ");
-    //fflush( stdout );
-
-    // TODO Make input come from text file
-
     FILE * plainText = NULL;                                    // Handle to file for plaintext
     plainText = fopen(argv[1], "r");                            // Open the file for reading
-    if(plainText == NULL)
+    if(plainText == NULL)                                       // More error outputs
     {
         error("CLIENT: ERROR reading plaintext file, DNE");
     }
 
-    char str[70000] = { '\0' };
-    fgets(str, sizeof(str), plainText);
-    //printf("Found str to be: %s", str);
-    //fflush( stdout );
+    char str[70000] = { '\0' };                                 // String to hold plaintext
+    fgets(str, sizeof(str), plainText);                         // Grab plaintext
 
-    str[strcspn(str, "\n")] = '\0';
+    str[strcspn(str, "\n")] = '\0';                             // Strip newline char
 
-    //printf("Stripping str of its \n yields %s", str);
-    //fflush( stdout );
+    fclose(plainText);                                          // Close file
 
-    fclose(plainText);
-
-    FILE * keyHandle = NULL;
+    FILE * keyHandle = NULL;                                    // Open key file
     keyHandle = fopen(argv[2], "r");
-    if(plainText == NULL)
+    if(keyHandle == NULL)
     {
         error("CLIENT: ERROR reading keyHandle file, DNE");
     }
 
-    char key[80000];
-    fgets(key, sizeof(key), keyHandle);
+    char key[80000];                                            // String for key
+    fgets(key, sizeof(key), keyHandle);                         // Grab key
 
-    key[strcspn(key, "\n")] = '\0';
-    //printf("Found key to be %s after stripping it of its newline\n");
-    //fflush( stdout );
+    key[strcspn(key, "\n")] = '\0';                             // Strip newline char
 
-    fclose(keyHandle);
+    fclose(keyHandle);                                          // Close key file
 
-    char toTransmit[150000] = { '\0' };
-    strcpy(toTransmit, str);
-    strcat(toTransmit, "!");
-    strcat(toTransmit, key);
-    strcat(toTransmit, "!");
-    strcat(toTransmit, "E");
-    strcat(toTransmit, "!");
-
-    //printf("toTransmit: %s\n", toTransmit);
-
-    //memset(buffer, sizeof(buffer) - 1, stdin);                // Grab buffer
-
-    //buffer[strcspn(buffer, "\n")] = '\0';                     // Strip the newline from the buffer
+    char toTransmit[150000] = { '\0' };                         // New string for creation of transmission
+    strcpy(toTransmit, str);                                    // First put in char
+    fflush( stdout );
+    strcat(toTransmit, "!");                                    // Then a delimiter
+    strcat(toTransmit, key);                                    // Then the key
+    fflush( stdout );
+    strcat(toTransmit, "!");                                    // Then another delimiter
+    strcat(toTransmit, "E");                                    // Then an E code to identify the sender as enc
+    strcat(toTransmit, "!");                                    // Then another delimiter
 
     // Attempt to connect to the server, if it fails
     if(connect(socketHandle, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) < 0)
@@ -124,25 +107,25 @@ int main(int argc, char * argv[])
 
     // Attempt to transmit the buffer over the socket
     charsWritten = send(socketHandle, toTransmit, strlen(toTransmit), 0);
-    //printf("Chars written: %d\n", charsWritten);
-    //fflush( stdout );
 
     if(charsWritten < 0)                                        // If it fails
     {
         error("CLIENT: ERROR writing to socket");               // Output error
     }
 
-    memset(str, '\0', sizeof(str));                       // Clear buffer
+    memset(str, '\0', 70000);                                   // Clear buffer
 
     // Recieve the transmission from the server
-    charsRead = recv(socketHandle, str, sizeof(str) - 1, 0);
+    charsRead = recv(socketHandle, str, 70000, 0);
     if(charsRead < 0)                                           // If the recieve fails
     {
         error("CLIENT: ERROR reading from socket");             // Output error
     }
 
     // Output the recieved chars
-    printf("%s\n", str);
+    if(str[0] != '\0')
+        strcat(str, "\n");
+    printf("%s", str);
     fflush( stdout );
 
     close(socketHandle);                                        // Hang up

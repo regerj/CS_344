@@ -11,25 +11,25 @@
 
 char * encrypt(char * msg, char * key)
 {
-    char encMsg[70000];
-    strcpy(encMsg, msg);
+    char encMsg[70000];                                         // Encrypted message string
+    strcpy(encMsg, msg);                                        // Copy message into encMsg
     //printf("encMsg before encoding: %s\n", encMsg);
 
-    for(int i = 0; i < strlen(encMsg); i++)
+    for(int i = 0; i < strlen(encMsg); i++)                     // Iterate through the message
     {
-        if(encMsg[i] == 32)
-            encMsg[i] = 91;
-        if(key[i] == 32)
-            key[i] = 91;
-        int encChar = (encMsg[i]) + (key[i] - 65);
-        if(encChar > 91)
-            encChar = encChar - 27;
-        if(encChar == 91)
-            encChar = 32;
-        encMsg[i] = (char)encChar;
+        if(encMsg[i] == 32)                                     // If the message has a space
+            encMsg[i] = 91;                                     // Replace with a bracket
+        if(key[i] == 32)                                        // If key has a space
+            key[i] = 91;                                        // Replace with a bracket
+        int encChar = (encMsg[i]) + (key[i] - 65);              // Logic for determining encrypted char
+        if(encChar > 91)                                        // Modulate
+            encChar = encChar - 27;                             // By 27
+        if(encChar == 91)                                       // If there is a bracket
+            encChar = 32;                                       // Replace with space
+        encMsg[i] = (char)encChar;                              // Set the respective char
     }
 
-    return encMsg;
+    return encMsg;                                              // Return the now encrypted message
 }
 
 // Error function used for reporting issues
@@ -55,6 +55,7 @@ int main(int argc, char * argv[])
     int charsRead;
     int charsWritten;
     char buffer[150000];
+    char buffer2[150000];
     struct sockaddr_in serverAddress;
     struct sockaddr_in clientAddress;
     socklen_t sizeOfClientInfo = sizeof(clientAddress);
@@ -91,86 +92,78 @@ int main(int argc, char * argv[])
             error("ERROR on accept");                           // Output error
         }
 
-        pid_t childPID = -1;
-        int childExitStatus = -1;
-        childPID = fork();
+        pid_t childPID = -1;                                    // Child PID
+        int childExitStatus = -1;                               // Exit status of child
+        childPID = fork();                                      // Spawn child
 
         switch(childPID)
         {
-            case -1: 
+            case -1:                                            // If something went wrong 
                 error("Invalid child!\n");
                 break;
-            case 0:
+            case 0:                                             // If it is the child
                 // Debug output 
                 printf("SERVER: Connected to client running at host %d port %d\n", ntohs(clientAddress.sin_addr.s_addr), ntohs(clientAddress.sin_port));
                 fflush( stdout );
-                memset(buffer, '\0', 150000);                              // Clear buffer
+                memset(buffer, '\0', 150000);                   // Clear buffer
+                memset(buffer2, '\0', 150000);
+                charsRead = recv(connectionSocket, buffer2, sizeof(buffer2), 0);     // Recieve communication into the buffer of max size 255
+                strcat(buffer, buffer2);                        // Add to buffer
 
-                charsRead = recv(connectionSocket, buffer, 149999, 0);     // Recieve communication into the buffer of max size 255
-                if(charsRead < 0)                                       // If the recieve failed
+                fflush( stdout );
+                if(charsRead > 80000)                           // If its a big un
                 {
-                    error("ERROR reading from socket");                 // Output error
+                    memset(buffer2, '\0', 150000);              // Read again
+                    charsRead = recv(connectionSocket, buffer2, sizeof(buffer), 0);     // Recieve communication into the buffer of max size 255
+                    strcat(buffer, buffer2);                    // Add to buffer
                 }
 
-                //printf("Recieved %d chars\n", charsRead);
-                //fflush( stdout );
-
-                // Output the recieved bytes
-                //printf("SERVER: I recieved this from the client : \"%s\"\n", buffer);
-                //fflush( stdout );
-
-                char msg[70000];
-                char key[80000];
-                char ID[2];
-                char * token = strtok(buffer, "!");
-                //printf("Made it past first tokenize: %s\n", token);
-                //fflush( stdout );
-                strcpy(msg, token);
-                token = strtok(NULL, "!");
-                //printf("Made it past the second tokenize: %s\n", token);
-                //fflush( stdout );
-                strcpy(key, token);
-                token = strtok(NULL, "!");
-                strcpy(ID, token);
-                if(strncmp(ID, "E", 1) != 0)
+                fflush( stdout );
+                if(charsRead < 0)                               // If the recieve failed
                 {
-                    close(connectionSocket);
+                    error("ERROR reading from socket");         // Output error
+                }
+
+                char msg[70000];                                // String for message
+                char key[80000];                                // String for key
+                char ID[2];                                     // String for sending ID
+                char * token = strtok(buffer, "!");             // Grab message
+                strcpy(msg, token);                             // Store
+                token = strtok(NULL, "!");                      // Grab key
+                strcpy(key, token);                             // Store
+                token = strtok(NULL, "!");                      // Grab ID
+                strcpy(ID, token);                              // Store
+                if(strncmp(ID, "E", 1) != 0)                    // If not correct sender
+                {
+                    close(connectionSocket);                    // Close connection
+                    // Output error information
                     error("SERVER: INVALID client connecting, terminated connection\n");
                 }
 
-                if(strlen(msg) > strlen(key))
+                if(strlen(msg) > strlen(key))                   // If key isn't long enough
                 {
+                    // Error output
                     error("ENC_SERVER: ERROR msg is longer than key\n");
                 }
+                char * encMsg = encrypt(msg, key);              // Encrypt the message
 
-                //printf("Made it past tokenizing\n");
-                //fflush( stdout );
-
-                char * encMsg = encrypt(msg, key);
-
-                //printf("encMsg: %s\n", encMsg);
-                //fflush( stdout );
-
-                // Send back an ACK
-                //printf("Size of encMsg: %d\n", strlen(encMsg));
+                // Send the encrypted message back
                 charsWritten = send(connectionSocket, encMsg, strlen(encMsg), 0);
-                //printf("Sent encMsg\n");
                 fflush( stdout );
-                if(charsWritten < 0)                                       // If the message failed to send
+
+                if(charsWritten < 0)                            // If the message failed to send
                 {
-                    error("ERROR writing to socket");                   // Output error
+                    error("ERROR writing to socket");           // Output error
                 }
                 exit(0);
                 break;
-            default:
-                close(connectionSocket);
-                pid_t temp = waitpid(childPID, &childExitStatus, WNOHANG);
+            default: ;                                           // If parent
+                // Wait for the child to finish
+                pid_t temp = NULL;
+                temp = waitpid(childPID, &childExitStatus, WNOHANG);
+                close(connectionSocket);                        // Close connection
                 break;
         }
-
-        
-
-        //close(connectionSocket);                                // Hang up
     }
 
     close(listenSocket);
